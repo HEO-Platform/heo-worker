@@ -78,14 +78,20 @@ exports.handler = async function(event, context) {
             let metaJSON = await metaFile.json();
 
             //get currency symbol
-            console.log(`getting the name of coin at ${token}`);
-            let coinInstance = new web3.eth.Contract(
-                ERC20_ABI,
-                token
-            );
+            var coinName;
+            if(token == "0x0000000000000000000000000000000000000000") {
+                coinName = process.env.NATIVE_TOKEN_SYMBOL;
+            } else {
+                console.log(`getting the name of coin at ${token}`);
+                let coinInstance = new web3.eth.Contract(
+                    ERC20_ABI,
+                    token
+                );
+                coinName = await coinInstance.methods.symbol().call();
+                console.log(coinName);
+            }
 
-            let coinName = await coinInstance.methods.symbol().call();
-            console.log(coinName);
+            console.log(`Coin name: ${coinName}`);
             let date = Date.now();
             const ITEM = {
                 _id : campaignAddress,
