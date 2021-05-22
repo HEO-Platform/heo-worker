@@ -1,6 +1,7 @@
 const PATH = require('path');
 const { MongoClient } = require('mongodb');
 const fetch = require('node-fetch');
+const AWS = require('aws-sdk');
 
 //contracts ABIs. These may need to change
 //when contracts are updated. TODO: move these to external files
@@ -19,12 +20,33 @@ var lastCheckedBlock = 0;
 const FACTORY_ADDRESS = process.env.CAMPAIGN_FACTORY_ADDRESS.toLowerCase();
 const URL = `mongodb+srv://${process.env.MONGO_LOGIN}:${process.env.MONGODB_PWD}${process.env.MONGO_URL}`;
 const DBNAME = process.env.MONGO_DB_NAME;
+const S3 = new AWS.S3({accessKeyId:process.env.SERVER_APP_ACCESS_ID,
+    secretAccessKey:process.env.SERVER_APP_ACCESS_KEY});
 
-async function doWork() {
+exports.handler = async function(event, context) {
     console.log(`Started worker`);
-    process.on('SIGTERM', () => {
-        console.log(`Worker ${id} exiting (cleanup here)`)
-    })
+    var params = {
+        Bucket: process.env.STATE_BUCKET,
+        Key: process.env.STATE_KEY,
+    };
+    try {
+        const data = await S3.getObject(params).promise();
+        const jsonData = JSON.parse(data.Body.toString('utf-8'));
+        console.log(jsonData);
+    } catch (err) {
+        if(err && err.code && err.code == 'NoSuchKey') {
+            params.Body = JSON.stringify({lastCheckedBlock:lastCheckedBlock});
+            params.ContentType = 'application/json';
+            S3.upload(params, function(s3Err, data) {
+                if (s3Err) throw s3Err
+                console.log(`File uploaded successfully at ${data.Location}`)
+            });
+
+        } else {
+            console.log(err);
+        }
+    }
+
     var factoryInstance = new web3.eth.Contract(
         FACTORY_ABI,
         FACTORY_ADDRESS,
@@ -87,6 +109,13 @@ async function doWork() {
         }
         lastCheckedBlock = eventBlock;
     }
+    params.Body = JSON.stringify({lastCheckedBlock:lastCheckedBlock});
+    params.ContentType = 'application/json';
+    S3.upload(params, function(s3Err, data) {
+        if (s3Err) throw s3Err
+        console.log(`File uploaded successfully at ${data.Location}`)
+    });
+
     console.log("Updated new campaigns");
     console.log("Updating donations");
     let campaigns = await DB.collection("campaigns").find().toArray();
@@ -102,6 +131,7 @@ async function doWork() {
             await DB.collection("campaigns").findOneAndUpdate({ "_id" : campaign._id}, { "$set" : {"raisedAmount" : web3.utils.fromWei(amountRaised)}})
         }
     }
+    await CLIENT.close();
     console.log("Updated donations");
     console.log(`Worker is done`);
 }
