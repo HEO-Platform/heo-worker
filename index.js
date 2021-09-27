@@ -75,10 +75,11 @@ exports.handler = async function(event, context) {
                 for(let k = bscJSON.result.length-1; k >=0; k--) {
                     var txnObj = bscJSON.result[k];
                     if(txnObj.to == campaign._id) {
-                        lastDonationTime = new Date(txnObj.timestamp * 1000);
+                        console.log(`Donation timestamp ${txnObj.timeStamp}`);
+                        lastDonationTime = new Date(txnObj.timeStamp * 1000);
                         lastCheckedBlock = txnObj.blockNumber;
                         updateS3 = true;
-                        console.log(`Found latest transaction for ${txnObj.to}. Last checked block is ${lastCheckedBlock}`);
+                        console.log(`Found latest transaction for ${txnObj.to}. Last checked block is ${lastCheckedBlock}. lastDonationTime: ${lastDonationTime}`);
                         break;
                     } else {
                         console.log("unexpected transaction object");
@@ -91,10 +92,11 @@ exports.handler = async function(event, context) {
 
             if(lastDonationTime == undefined || lastDonationTime == 0) {
                 console.log("Did not find lastDonationTime");
-                lastDonationTime = new Date.now();
+                lastDonationTime = new Date();
             }
             await DB.collection("campaigns").updateOne({ "_id" : campaign._id},
                 { "$set" : {"raisedAmount" : web3.utils.fromWei(amountRaised),"lastDonationTime" : lastDonationTime}});
+            console.log(`Updated campaign ${campaign._id} with lastDonationTime ${lastDonationTime}`);
         }
     }
     console.log("Updated donations");
@@ -102,10 +104,12 @@ exports.handler = async function(event, context) {
     if(updateS3) {
         params.Body = JSON.stringify({lastCheckedBlock:lastCheckedBlock});
         params.ContentType = 'application/json';
-        S3.upload(params, function(s3Err, data) {
-            if (s3Err) throw s3Err
-            console.log(`File uploaded successfully at ${data.Location}`)
-        });
+        try {
+            await S3.upload(params).promise();
+            console.log(`File with latest block number uploaded successfully`);
+        } catch (err) {
+            console.log(err);
+        }
     }
     console.log(`Worker is done`);
 }
