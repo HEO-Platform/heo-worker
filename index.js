@@ -58,7 +58,7 @@ exports.handler = async function(event, context) {
     console.log("Updating donations");
     let campaigns = await DB.collection("campaigns").find().toArray();
     console.log(`Found ${campaigns.length} campaigns`);
-    
+
     for(let i = 0; i < campaigns.length; i++) {
         let campaign = campaigns[i];
         console.log(`Checking raised amount for campaign ${campaign._id}`);
@@ -83,7 +83,12 @@ exports.handler = async function(event, context) {
                 console.log(`Updating raised amount from ${campaign.raisedAmount} to ${campaignRaised} for campaign ${campaign._id}`);
                 for(let chain in campaign.addresses) {
                     console.log(`Checking for transactions for campaign ${campaign._id} on ${chain} at ${campaign.addresses[chain]}`);
-                    let fetchURL = `${process.env[(chain+"_API_BASE")]}/api?module=account&action=txlist&address=${campaign.addresses[chain]}&startblock=${lastCheckedBlock}&endblock=latest&sort=asc&apikey=${process.env[chain+"_API_KEY"]}`;
+                    let _lastBlock = 0;
+                    if(lastCheckedBlock[chain]) {
+                        _lastBlock = lastCheckedBlock[chain];
+                    }
+
+                    let fetchURL = `${process.env[(chain+"_API_BASE")]}/api?module=account&action=txlist&address=${campaign.addresses[chain]}&startblock=${_lastBlock}&endblock=latest&sort=asc&apikey=${process.env[chain+"_API_KEY"]}`;
                     console.log(fetchURL);
                     let scanResult = await fetch(fetchURL);
                     let jsonResult = await scanResult.json();
@@ -99,7 +104,7 @@ exports.handler = async function(event, context) {
                                 }
                                 lastCheckedBlock[chain] = txnObj.blockNumber;
                                 updateS3[chain] = true;
-                                console.log(`Found latest transaction for ${txnObj.to}. Last checked block is ${lastCheckedBlock[chain]}. lastDonationTime: ${lastDonationTime}`);
+                                console.log(`Found latest transaction for ${txnObj.to}. Updating checked block to ${lastCheckedBlock[chain]}. lastDonationTime: ${lastDonationTime}`);
                                 break;
                             } else {
                                 console.log("unexpected transaction object");
