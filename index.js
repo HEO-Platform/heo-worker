@@ -1,13 +1,12 @@
 const { MongoClient } = require('mongodb');
 const AWS = require('aws-sdk');
-//const PATH = require('path');
 const fetch = require('node-fetch');
 
 //contracts ABIs. These may need to change
 //when contracts are updated. TODO: move these to external files
 const CAMPAIGN_ABI = [{"inputs":[{"internalType":"uint256","name":"maxAmount","type":"uint256"},{"internalType":"address payable","name":"beneficiary","type":"address"},{"internalType":"address","name":"currency","type":"address"},{"internalType":"contract HEODAO","name":"dao","type":"address"},{"internalType":"uint256","name":"heoLocked","type":"uint256"},{"internalType":"uint256","name":"heoPrice","type":"uint256"},{"internalType":"uint256","name":"heoPriceDecimals","type":"uint256"},{"internalType":"uint256","name":"fee","type":"uint256"},{"internalType":"uint256","name":"feeDecimals","type":"uint256"},{"internalType":"address","name":"heoAddr","type":"address"},{"internalType":"string","name":"metaData","type":"string"}],"stateMutability":"nonpayable","type":"constructor"},{"anonymous":false,"inputs":[{"indexed":true,"internalType":"address","name":"previousOwner","type":"address"},{"indexed":true,"internalType":"address","name":"newOwner","type":"address"}],"name":"OwnershipTransferred","type":"event"},{"inputs":[],"name":"owner","outputs":[{"internalType":"address","name":"","type":"address"}],"stateMutability":"view","type":"function"},{"inputs":[{"internalType":"address","name":"newOwner","type":"address"}],"name":"transferOwnership","outputs":[],"stateMutability":"nonpayable","type":"function"},{"stateMutability":"payable","type":"receive"},{"inputs":[],"name":"donateNative","outputs":[],"stateMutability":"payable","type":"function"},{"inputs":[{"internalType":"uint256","name":"amount","type":"uint256"}],"name":"donateERC20","outputs":[],"stateMutability":"nonpayable","type":"function"},{"inputs":[],"name":"currency","outputs":[{"internalType":"address","name":"","type":"address"}],"stateMutability":"view","type":"function"},{"inputs":[],"name":"maxAmount","outputs":[{"internalType":"uint256","name":"","type":"uint256"}],"stateMutability":"view","type":"function"},{"inputs":[],"name":"raisedAmount","outputs":[{"internalType":"uint256","name":"","type":"uint256"}],"stateMutability":"view","type":"function"},{"inputs":[],"name":"heoPrice","outputs":[{"internalType":"uint256","name":"","type":"uint256"}],"stateMutability":"view","type":"function"},{"inputs":[],"name":"heoPriceDecimals","outputs":[{"internalType":"uint256","name":"","type":"uint256"}],"stateMutability":"view","type":"function"},{"inputs":[],"name":"fee","outputs":[{"internalType":"uint256","name":"","type":"uint256"}],"stateMutability":"view","type":"function"},{"inputs":[],"name":"feeDecimals","outputs":[{"internalType":"uint256","name":"","type":"uint256"}],"stateMutability":"view","type":"function"},{"inputs":[],"name":"isActive","outputs":[{"internalType":"bool","name":"","type":"bool"}],"stateMutability":"view","type":"function"},{"inputs":[],"name":"beneficiary","outputs":[{"internalType":"address","name":"","type":"address"}],"stateMutability":"view","type":"function"},{"inputs":[],"name":"heoLocked","outputs":[{"internalType":"uint256","name":"","type":"uint256"}],"stateMutability":"view","type":"function"},{"inputs":[],"name":"metaData","outputs":[{"internalType":"string","name":"","type":"string"}],"stateMutability":"view","type":"function"},{"inputs":[{"internalType":"string","name":"newMetaData","type":"string"}],"name":"updateMetaData","outputs":[],"stateMutability":"nonpayable","type":"function"},{"inputs":[{"internalType":"uint256","name":"newMaxAmount","type":"uint256"},{"internalType":"string","name":"newMetaData","type":"string"}],"name":"update","outputs":[],"stateMutability":"nonpayable","type":"function"},{"inputs":[{"internalType":"uint256","name":"newMaxAmount","type":"uint256"}],"name":"updateMaxAmount","outputs":[],"stateMutability":"nonpayable","type":"function"},{"inputs":[],"name":"close","outputs":[],"stateMutability":"nonpayable","type":"function"},{"inputs":[],"name":"renounceOwnership","outputs":[],"stateMutability":"nonpayable","type":"function"}];
 const ERC20_ABI = [{"inputs":[{"internalType":"string","name":"name_","type":"string"},{"internalType":"string","name":"symbol_","type":"string"}],"stateMutability":"nonpayable","type":"constructor"},{"anonymous":false,"inputs":[{"indexed":true,"internalType":"address","name":"owner","type":"address"},{"indexed":true,"internalType":"address","name":"spender","type":"address"},{"indexed":false,"internalType":"uint256","name":"value","type":"uint256"}],"name":"Approval","type":"event"},{"anonymous":false,"inputs":[{"indexed":true,"internalType":"address","name":"from","type":"address"},{"indexed":true,"internalType":"address","name":"to","type":"address"},{"indexed":false,"internalType":"uint256","name":"value","type":"uint256"}],"name":"Transfer","type":"event"},{"inputs":[],"name":"name","outputs":[{"internalType":"string","name":"","type":"string"}],"stateMutability":"view","type":"function"},{"inputs":[],"name":"symbol","outputs":[{"internalType":"string","name":"","type":"string"}],"stateMutability":"view","type":"function"},{"inputs":[],"name":"decimals","outputs":[{"internalType":"uint8","name":"","type":"uint8"}],"stateMutability":"view","type":"function"},{"inputs":[],"name":"totalSupply","outputs":[{"internalType":"uint256","name":"","type":"uint256"}],"stateMutability":"view","type":"function"},{"inputs":[{"internalType":"address","name":"account","type":"address"}],"name":"balanceOf","outputs":[{"internalType":"uint256","name":"","type":"uint256"}],"stateMutability":"view","type":"function"},{"inputs":[{"internalType":"address","name":"recipient","type":"address"},{"internalType":"uint256","name":"amount","type":"uint256"}],"name":"transfer","outputs":[{"internalType":"bool","name":"","type":"bool"}],"stateMutability":"nonpayable","type":"function"},{"inputs":[{"internalType":"address","name":"owner","type":"address"},{"internalType":"address","name":"spender","type":"address"}],"name":"allowance","outputs":[{"internalType":"uint256","name":"","type":"uint256"}],"stateMutability":"view","type":"function"},{"inputs":[{"internalType":"address","name":"spender","type":"address"},{"internalType":"uint256","name":"amount","type":"uint256"}],"name":"approve","outputs":[{"internalType":"bool","name":"","type":"bool"}],"stateMutability":"nonpayable","type":"function"},{"inputs":[{"internalType":"address","name":"sender","type":"address"},{"internalType":"address","name":"recipient","type":"address"},{"internalType":"uint256","name":"amount","type":"uint256"}],"name":"transferFrom","outputs":[{"internalType":"bool","name":"","type":"bool"}],"stateMutability":"nonpayable","type":"function"},{"inputs":[{"internalType":"address","name":"spender","type":"address"},{"internalType":"uint256","name":"addedValue","type":"uint256"}],"name":"increaseAllowance","outputs":[{"internalType":"bool","name":"","type":"bool"}],"stateMutability":"nonpayable","type":"function"},{"inputs":[{"internalType":"address","name":"spender","type":"address"},{"internalType":"uint256","name":"subtractedValue","type":"uint256"}],"name":"decreaseAllowance","outputs":[{"internalType":"bool","name":"","type":"bool"}],"stateMutability":"nonpayable","type":"function"}];
-//require('dotenv').config({path : PATH.resolve(process.cwd(), '.env')});
+
 var Web3 = require('web3');
 
 var lastCheckedBlock = {bsc: 0, celo: 0, aurora: 0, eth: 0};
@@ -62,69 +61,88 @@ exports.handler = async function(event, context) {
     for(let i = 0; i < campaigns.length; i++) {
         let campaign = campaigns[i];
         console.log(`Checking raised amount for campaign ${campaign._id}`);
+        let lastDonationTime = undefined;
         if(campaign.addresses) {
             var campaignRaised = 0;
-            var lastDonationTime = undefined;
             var lastDonationTS = 0;
-            for(let chain in campaign.addresses) {
-                var web3Provider = new Web3.providers.HttpProvider(process.env[chain+"_WEB3_RPC_NODE_URL"]);
-                var web3 = new Web3(web3Provider);
+            try {
+                for (let chain in campaign.addresses) {
+                    var web3Provider = new Web3.providers.HttpProvider(process.env[chain + "_WEB3_RPC_NODE_URL"]);
+                    var web3 = new Web3(web3Provider);
 
-                console.log(`Checking amount of ${campaign.coins[chain].name} raised on ${chain} for ${campaign._id}`);
-                var campaignInstance = new web3.eth.Contract(CAMPAIGN_ABI, campaign.addresses[chain]);
-                var coinInstance = new web3.eth.Contract(ERC20_ABI, campaign.coins[chain].address);
-                var raisedWei = await campaignInstance.methods.raisedAmount().call();
-                var decimals = await coinInstance.methods.decimals().call();
-                var amountRaised = raisedWei / Math.pow(10, decimals);
-                campaignRaised+=amountRaised;
-            }
+                    console.log(`Checking amount of ${campaign.coins[chain].name} raised on ${chain} for ${campaign._id}`);
+                    var campaignInstance = new web3.eth.Contract(CAMPAIGN_ABI, campaign.addresses[chain]);
+                    var coinInstance = new web3.eth.Contract(ERC20_ABI, campaign.coins[chain].address);
+                    var raisedWei = await campaignInstance.methods.raisedAmount().call();
+                    var decimals = await coinInstance.methods.decimals().call();
+                    var amountRaised = raisedWei / Math.pow(10, decimals);
+                    campaignRaised += amountRaised;
+                }
 
-            if(campaignRaised != campaign.raisedAmount) {
-                console.log(`Updating raised amount from ${campaign.raisedAmount} to ${campaignRaised} for campaign ${campaign._id}`);
-                for(let chain in campaign.addresses) {
-                    console.log(`Checking for transactions for campaign ${campaign._id} on ${chain} at ${campaign.addresses[chain]}`);
-                    let _lastBlock = 0;
-                    if(lastCheckedBlock[chain]) {
-                        _lastBlock = lastCheckedBlock[chain];
-                    }
-
-                    let fetchURL = `${process.env[(chain+"_API_BASE")]}/api?module=account&action=txlist&address=${campaign.addresses[chain]}&startblock=${_lastBlock}&endblock=latest&sort=asc&apikey=${process.env[chain+"_API_KEY"]}`;
-                    console.log(fetchURL);
-                    let scanResult = await fetch(fetchURL);
-                    let jsonResult = await scanResult.json();
-                    if(jsonResult.result && jsonResult.result.length) {
-                        console.log(`Found ${jsonResult.result.length} transactions for ${campaign.addresses[chain]}`);
-                        for(let k = jsonResult.result.length-1; k >=0; k--) {
-                            var txnObj = jsonResult.result[k];
-                            if(txnObj.to == campaign.addresses[chain]) {
-                                console.log(`Donation timestamp ${txnObj.timeStamp}`);
-                                if(lastDonationTS < txnObj.timeStamp) {
-                                    lastDonationTime = new Date(txnObj.timeStamp * 1000);
-                                    lastDonationTS = txnObj.timeStamp;
-                                }
-                                lastCheckedBlock[chain] = txnObj.blockNumber;
-                                updateS3[chain] = true;
-                                console.log(`Found latest transaction for ${txnObj.to}. Updating checked block to ${lastCheckedBlock[chain]}. lastDonationTime: ${lastDonationTime}`);
-                                break;
-                            } else {
-                                console.log("unexpected transaction object");
-                                console.log(txnObj);
-                            }
+                if (campaignRaised != campaign.raisedAmount) {
+                    console.log(`Updating raised amount from ${campaign.raisedAmount} to ${campaignRaised} for campaign ${campaign._id}`);
+                    for (let chain in campaign.addresses) {
+                        console.log(`Checking for transactions for campaign ${campaign._id} on ${chain} at ${campaign.addresses[chain]}`);
+                        let _lastBlock = 0;
+                        if (lastCheckedBlock[chain]) {
+                            _lastBlock = lastCheckedBlock[chain];
                         }
-                    } else {
-                        console.log(`did not find any transactions for ${campaign._id}`)
+
+                        let fetchURL = `${process.env[(chain + "_API_BASE")]}/api?module=account&action=txlist&address=${campaign.addresses[chain]}&startblock=${_lastBlock}&endblock=latest&sort=asc&apikey=${process.env[chain + "_API_KEY"]}`;
+                        console.log(fetchURL);
+                        let scanResult = await fetch(fetchURL);
+                        let jsonResult = await scanResult.json();
+                        if (jsonResult.result && jsonResult.result.length) {
+                            console.log(`Found ${jsonResult.result.length} transactions for ${campaign.addresses[chain]}`);
+                            for (let k = jsonResult.result.length - 1; k >= 0; k--) {
+                                var txnObj = jsonResult.result[k];
+                                if (txnObj.to == campaign.addresses[chain]) {
+                                    console.log(`Donation timestamp ${txnObj.timeStamp}`);
+                                    if (lastDonationTS < txnObj.timeStamp) {
+                                        lastDonationTime = new Date(txnObj.timeStamp * 1000);
+                                        lastDonationTS = txnObj.timeStamp;
+                                    }
+                                    lastCheckedBlock[chain] = txnObj.blockNumber;
+                                    updateS3[chain] = true;
+                                    console.log(`Found latest transaction for ${txnObj.to}. Updating checked block to ${lastCheckedBlock[chain]}. lastDonationTime: ${lastDonationTime}`);
+                                    break;
+                                } else {
+                                    console.log("unexpected transaction object");
+                                    console.log(txnObj);
+                                }
+                            }
+                        } else {
+                            console.log(`did not find any transactions for ${campaign._id}`)
+                        }
                     }
+                    if (lastDonationTime == undefined || lastDonationTime == 0) {
+                        console.log("Did not find lastDonationTime");
+                        lastDonationTime = new Date();
+                    }
+                    await DB.collection("campaigns").updateOne({"_id": campaign._id},
+                        {"$set": {"raisedAmount": campaignRaised, "lastDonationTime": lastDonationTime}});
+                    console.log(`Updated campaign ${campaign._id} with lastDonationTime ${lastDonationTime}`);
                 }
-                if(lastDonationTime == undefined || lastDonationTime == 0) {
-                    console.log("Did not find lastDonationTime");
-                    lastDonationTime = new Date();
-                }
-                await DB.collection("campaigns").updateOne({ "_id" : campaign._id},
-                    { "$set" : {"raisedAmount" : campaignRaised,"lastDonationTime" : lastDonationTime}});
-                console.log(`Updated campaign ${campaign._id} with lastDonationTime ${lastDonationTime}`);
+            } catch (err) {
+                console.log(err)
             }
         }
 
+        //check fiat donations
+        let campaignFiatDonations = await DB.collection("fiat_payment_records").find({campaignId:campaign._id, paymentStatus:"COMPLETED"}).toArray();
+        let fiatDonations = 0;
+        console.log(`Found ${campaignFiatDonations.length} fiat donations`);
+        for(let j = 0; j < campaignFiatDonations.length; j++) {
+            fiatDonations += campaignFiatDonations[j].paymentAmount;
+            if(campaignFiatDonations[j].lastUpdated > lastDonationTime || !lastDonationTime) {
+                lastDonationTime = campaignFiatDonations[j].lastUpdated;
+            }
+        }
+        if(fiatDonations != campaign.fiatDonations && fiatDonations > 0) {
+            await DB.collection("campaigns").updateOne({ "_id" : campaign._id},
+                { "$set" : {"fiatDonations" : fiatDonations, "lastDonationTime" : lastDonationTime}});
+            console.log(`Updated campaign ${campaign._id} with fiat donations amount ${fiatDonations} and lastDonationTime ${lastDonationTime}`);
+        }
 
     }
     console.log("Updated donations");
